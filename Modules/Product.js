@@ -15,6 +15,9 @@ const productSchema = new Schema({
     description: {
         type: String,
     },
+    thumbnail: {
+        type: String,
+    },
     features: {
         type: String,
     },
@@ -50,6 +53,9 @@ const productSchema = new Schema({
     downloads: {
         type: Number,
         default: 0
+    },
+    sampleUrl: {
+        type: String
     }
 }, { timestamps: true });
 

@@ -7,19 +7,25 @@ const router = express.Router();
 
 router.post("/uploadProduct", upload.fields([
     { name: "featureImg", maxCount: 1 },
+    { name: "thumbnail", maxCount: 1 },
     { name: "screenshots", maxCount: 5 },
 ]), errorHandling(async (req, res) => {
-    const { categoryId, subCategoryId, title, description, features, userId, authorName, directUrl, downloadUrl, accessLevel, version } = req.body;
+    const { categoryId, subCategoryId, title, description, features, userId, authorName, directUrl, downloadUrl, accessLevel, version, sampleUrl } = req.body;
 
-    if (!categoryId || !subCategoryId || !title || !description || !features || !accessLevel || !req.files["featureImg"] || !userId || !authorName) return res.status(400).json({ message: "Fields with * should be filled" })
+    if (!categoryId || !subCategoryId || !title || !description || !features || !accessLevel || !req.files["featureImg"] || !req.files["thumbnail"] || !userId || !authorName) return res.status(400).json({ message: "Fields with * should be filled" })
 
     const checkTitle = await Product.findOne({ title })
     if (checkTitle) return res.json(404).json({ message: "Title already exists" })
 
-    let featureImg_url = "", screenShots_url = [];
+    let featureImg_url = "", thumbnail_url = "", screenShots_url = []
     if (req.files["featureImg"]) {
         const imgconfig = await cloudinary.uploader.upload(req.files["featureImg"][0].path);
         featureImg_url = imgconfig.secure_url;
+    }
+
+    if (req.files["thumbnail"]) {
+        const thumbnailConfig = await cloudinary.uploader.upload(req.files["thumbnail"][0].path);
+        thumbnail_url = thumbnailConfig.secure_url;
     }
 
     if (req.files["screenshots"]) {
@@ -30,7 +36,7 @@ router.post("/uploadProduct", upload.fields([
     }
 
     const newProduct = await Product.create({
-        categoryId, subCategoryId, title, description, features, featureImg: featureImg_url, screenshots: screenShots_url, userId, authorName, directUrl, downloadUrl, accessLevel, version
+        categoryId, subCategoryId, title, description, features, thumbnail: thumbnail_url, featureImg: featureImg_url, screenshots: screenShots_url, userId, authorName, directUrl, downloadUrl, accessLevel, version, sampleUrl
     });
     res.json(newProduct);
 }));
@@ -52,10 +58,11 @@ router.put(
     "/editProduct/:id",
     upload.fields([
         { name: "featureImg", maxCount: 1 },
+        { name: "thumbnail", maxCount: 1 },
     ]),
     errorHandling(async (req, res) => {
         const {
-            categoryId, subCategoryId, title, description, features, authorName, directUrl, downloadUrl, accessLevel, version } = req.body;
+            categoryId, subCategoryId, title, description, features, authorName, directUrl, downloadUrl, accessLevel, version, sampleUrl } = req.body;
 
         let newProductData = {};
 
@@ -68,11 +75,17 @@ router.put(
         if (authorName) newProductData.authorName = authorName;
         if (directUrl) newProductData.directUrl = directUrl;
         if (version) newProductData.version = version;
+        if (sampleUrl) newProductData.sampleUrl = sampleUrl;
         if (downloadUrl) newProductData.downloadUrl = downloadUrl;
 
         if (req.files && req.files["featureImg"]) {
             const imgconfig = await cloudinary.uploader.upload(req.files["featureImg"][0].path);
             newProductData.featureImg = imgconfig.secure_url;
+        }
+
+        if (req.files && req.files["thumbnail"]) {
+            const thumbnailConfig = await cloudinary.uploader.upload(req.files["thumbnail"][0].path);
+            newProductData.thumbnail = thumbnailConfig.secure_url;
         }
 
         const productData = await Product.findByIdAndUpdate(
