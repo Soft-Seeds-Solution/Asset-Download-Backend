@@ -10,14 +10,26 @@ router.post("/uploadProduct", upload.fields([
     { name: "thumbnail", maxCount: 1 },
     { name: "screenshots", maxCount: 5 },
 ]), errorHandling(async (req, res) => {
-    const { categoryId, subCategoryId, title, description, features, userId, authorName, directUrl, downloadUrl, accessLevel, version, sampleUrl } = req.body;
+    const {
+        categoryId,
+        subCategoryId,
+        title,
+        description,
+        features,
+        userId,
+        authorName,
+        sampleUrl,
+        versions
+    } = req.body;
 
-    if (!categoryId || !subCategoryId || !title || !description || !features || !accessLevel || !req.files["featureImg"] || !req.files["thumbnail"] || !userId || !authorName) return res.status(400).json({ message: "Fields with * should be filled" })
+    if (!categoryId || !subCategoryId || !title || !description || !features || !req.files["featureImg"] || !req.files["thumbnail"] || !userId || !authorName || versions.length < 1)
+        return res.status(400).json({ message: "Fields with * should be filled" });
 
-    const checkTitle = await Product.findOne({ title })
-    if (checkTitle) return res.json(404).json({ message: "Title already exists" })
+    const checkTitle = await Product.findOne({ title });
+    if (checkTitle) return res.status(404).json({ message: "Title already exists" });
 
-    let featureImg_url = "", thumbnail_url = "", screenShots_url = []
+    let featureImg_url = "", thumbnail_url = "", screenShots_url = [];
+
     if (req.files["featureImg"]) {
         const imgconfig = await cloudinary.uploader.upload(req.files["featureImg"][0].path);
         featureImg_url = imgconfig.secure_url;
@@ -35,9 +47,31 @@ router.post("/uploadProduct", upload.fields([
         }
     }
 
+    let parsedVersions = [];
+    try {
+        parsedVersions = JSON.parse(versions);
+        if (!Array.isArray(parsedVersions) || parsedVersions.length < 1) {
+            return res.status(400).json({ message: "At least one version is required." });
+        }
+    } catch (err) {
+        return res.status(400).json({ message: "Invalid versions format. Must be JSON array." });
+    }
+
     const newProduct = await Product.create({
-        categoryId, subCategoryId, title, description, features, thumbnail: thumbnail_url, featureImg: featureImg_url, screenshots: screenShots_url, userId, authorName, directUrl, downloadUrl, accessLevel, version, sampleUrl
+        categoryId,
+        subCategoryId,
+        title,
+        description,
+        features,
+        thumbnail: thumbnail_url,
+        featureImg: featureImg_url,
+        screenshots: screenShots_url,
+        userId,
+        authorName,
+        sampleUrl,
+        versions: parsedVersions
     });
+
     res.json(newProduct);
 }));
 
@@ -62,7 +96,15 @@ router.put(
     ]),
     errorHandling(async (req, res) => {
         const {
-            categoryId, subCategoryId, title, description, features, authorName, directUrl, downloadUrl, accessLevel, version, sampleUrl } = req.body;
+            categoryId,
+            subCategoryId,
+            title,
+            description,
+            features,
+            authorName,
+            sampleUrl,
+            versions
+        } = req.body;
 
         let newProductData = {};
 
@@ -70,14 +112,19 @@ router.put(
         if (categoryId) newProductData.categoryId = categoryId;
         if (description) newProductData.description = description;
         if (features) newProductData.features = features;
-        if (accessLevel) newProductData.accessLevel = accessLevel;
         if (subCategoryId) newProductData.subCategoryId = subCategoryId;
         if (authorName) newProductData.authorName = authorName;
-        if (directUrl) newProductData.directUrl = directUrl;
-        if (version) newProductData.version = version;
         if (sampleUrl) newProductData.sampleUrl = sampleUrl;
-        if (downloadUrl) newProductData.downloadUrl = downloadUrl;
 
+        if (versions) {
+            try {
+                newProductData.versions = JSON.parse(versions);
+            } catch (err) {
+                return res.status(400).json({ message: "Invalid versions format. Must be a valid JSON array." });
+            }
+        }
+
+        // Cloudinary uploads
         if (req.files && req.files["featureImg"]) {
             const imgconfig = await cloudinary.uploader.upload(req.files["featureImg"][0].path);
             newProductData.featureImg = imgconfig.secure_url;
@@ -95,11 +142,12 @@ router.put(
         );
 
         if (!productData) {
-            return res.status(404).json({ message: "Game not found" });
+            return res.status(404).json({ message: "Product not found" });
         }
+
         res.json(productData);
     })
-);
+)
 
 router.put(
     "/updateViews/:id", errorHandling(async (req, res) => {
